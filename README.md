@@ -81,6 +81,64 @@ The script will:
 ./deploy.sh   # preserves env vars; only updates code
 ```
 
+## Terraform deploy
+
+The project includes a `terraform/` directory for deploying the Lambda and Function URL.
+
+1. Copy the example vars file:
+```bash
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars
+```
+2. Edit `terraform/terraform.tfvars` and set:
+   - `gemini_api_key`
+   - `hmac_secret`
+   - `self_origin`
+   - `allowed_origins`
+
+3. Initialize Terraform:
+```bash
+cd terraform
+terraform init
+```
+
+4. Preview the planned AWS changes:
+```bash
+terraform plan
+```
+
+5. Apply the deployment:
+```bash
+terraform apply
+```
+
+6. After apply, get the function URL:
+```bash
+terraform output function_url
+```
+
+You can also set secrets with environment variables and a custom tfvars file:
+```bash
+GEMINI_API_KEY=... HMAC_SECRET=$(openssl rand -hex 32)
+cat <<EOF > terraform/terraform.tfvars
+aws_region     = "us-east-1"
+source_dir     = ".."
+role_name      = "spin-the-question-lambda-role"
+function_name  = "spin-the-question"
+handler        = "index.handler"
+runtime        = "nodejs20.x"
+
+gemini_api_key = "$GEMINI_API_KEY"
+hmac_secret    = "$HMAC_SECRET"
+force_fallbacks = "0"
+self_origin    = "https://your-app-origin.example"
+allowed_origins = ["https://your-app-origin.example"]
+EOF
+
+cd terraform
+erraform init
+erraform apply
+```
+
 ## Project layout
 
 ```

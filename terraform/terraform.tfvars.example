@@ -1,0 +1,18 @@
+aws_region     = "us-east-1"
+source_dir     = ".."
+role_name      = "spin-the-question-lambda-role"
+function_name  = "spin-the-question"
+handler        = "index.handler"
+runtime        = "nodejs20.x"
+
+gemini_api_key = "YOUR_GEMINI_API_KEY"
+hmac_secret    = "YOUR_HMAC_SECRET"
+
+# Use "1" to force fallback questions for testing or safe staging.
+force_fallbacks = "0"
+
+# Optional origin for self-origin checks and CORS.
+# Set to the front-end origin where the app is served, or leave empty for wildcard.
+self_origin = "https://your-app-origin.example"
+
+allowed_origins = ["https://your-app-origin.example"]

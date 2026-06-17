@@ -9,3 +9,8 @@ npm-debug.log*
 .vscode/
 node_modules/
 .env
+terraform/terraform.tfvars
+terraform/*.tfvars
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform/
