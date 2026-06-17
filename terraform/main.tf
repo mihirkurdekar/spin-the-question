@@ -25,6 +25,22 @@ data "archive_file" "lambda_zip" {
   type        = "zip"
   source_dir  = var.source_dir
   output_path = "${path.module}/function.zip"
+  
+  excludes = [
+    "test",
+    "scripts",
+    "terraform",
+    ".git",
+    ".gitignore",
+    ".env",
+    ".env.local",
+    "README.md",
+    "SPEC.md",
+    "deploy.sh",
+    "*.log",
+    "npm-debug.log",
+    ".DS_Store"
+  ]
 }
 
 // ---------------------------------------------------------------
@@ -88,7 +104,7 @@ resource "aws_lambda_function_url" "public_url" {
   cors {
     allow_credentials = false
     allow_headers    = ["Content-Type", "X-Session-Token"]
-    allow_methods    = ["GET", "POST", "OPTIONS"]
+    allow_methods    = ["GET", "POST"]
     allow_origins    = var.allowed_origins
   }
 }
