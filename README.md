@@ -1,6 +1,6 @@
 # Spin the Question
 
-A solo-phone first-date game. Two people, one phone, AI-generated questions. Mobile-first PWA on AWS Lambda.
+An AI‑powered date‑night game where two people share one phone and answer fun, Gemini‑generated conversation prompts, built as a mobile‑first PWA on AWS Lambda.
 
 See [`SPEC.md`](./SPEC.md) for the full product spec.
 
