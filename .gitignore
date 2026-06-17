@@ -1,0 +1,11 @@
+node_modules/
+function.zip
+.env
+.env.local
+.DS_Store
+*.log
+npm-debug.log*
+.idea/
+.vscode/
+node_modules/
+.env

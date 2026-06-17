@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "rawPath": "/",
+  "headers": {
+    "user-agent": "lambda-local",
+    "origin": "http://localhost:8000"
+  },
+  "requestContext": {
+    "requestId": "local-get-root",
+    "http": {
+      "method": "GET",
+      "sourceIp": "127.0.0.1"
+    }
+  }
+}

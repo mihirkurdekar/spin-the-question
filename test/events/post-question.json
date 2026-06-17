@@ -1,0 +1,17 @@
+{
+  "version": "2.0",
+  "rawPath": "/question",
+  "headers": {
+    "content-type": "application/json",
+    "origin": "http://localhost:8000",
+    "x-session-token": "replace.with-real-token"
+  },
+  "requestContext": {
+    "requestId": "local-post-question",
+    "http": {
+      "method": "POST",
+      "sourceIp": "127.0.0.1"
+    }
+  },
+  "body": "{\"category\":\"Chaos\",\"questionNumber\":1,\"totalQuestions\":20,\"playerNames\":[\"You\",\"Them\"],\"keepItLight\":true}"
+}
