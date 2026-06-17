@@ -4,14 +4,18 @@ const crypto = require("crypto");
 process.env.HMAC_SECRET = process.env.HMAC_SECRET || "test-secret";
 process.env.SELF_ORIGIN = "https://example.lambda-url.us-east-1.on.aws";
 
+let lastGenerateQuestionArgs = null;
 const question = require("../question.js");
-question.generateQuestion = async ({ category }) => ({
-  question: `Question for ${category}?`,
-  tip: "Keep it moving.",
-  source: "fallback",
-  latencyMs: 3,
-  geminiMs: 0,
-});
+question.generateQuestion = async (args) => {
+  lastGenerateQuestionArgs = args;
+  return {
+    question: `Question for ${args.category}?`,
+    tip: "Keep it moving.",
+    source: "fallback",
+    latencyMs: 3,
+    geminiMs: 0,
+  };
+};
 question.generateVibe = async () => ({
   vibe: "You two seem curious and lightly chaotic.",
   source: "fallback",
@@ -72,7 +76,8 @@ async function run(name, fn) {
     assert.equal(res.statusCode, 403);
   });
 
-  await run("POST /question accepts a valid request", async () => {
+  await run("POST /question accepts a valid request (legacy keepItLight: true)", async () => {
+    lastGenerateQuestionArgs = null;
     const res = await handler(event("POST", "/question", {
       category: "Chaos",
       questionNumber: 1,
@@ -85,6 +90,58 @@ async function run(name, fn) {
       question: "Question for Chaos?",
       tip: "Keep it moving.",
     });
+    assert.ok(lastGenerateQuestionArgs);
+    assert.equal(lastGenerateQuestionArgs.relationshipStage, 0);
+  });
+
+  await run("POST /question accepts a valid request (legacy keepItLight: false)", async () => {
+    lastGenerateQuestionArgs = null;
+    const res = await handler(event("POST", "/question", {
+      category: "Chaos",
+      questionNumber: 1,
+      totalQuestions: 20,
+      playerNames: ["A", "B"],
+      keepItLight: false,
+    }, { "x-session-token": token() }));
+    assert.equal(res.statusCode, 200);
+    assert.ok(lastGenerateQuestionArgs);
+    assert.equal(lastGenerateQuestionArgs.relationshipStage, 2);
+  });
+
+  await run("POST /question accepts a valid request (relationshipStage: 3)", async () => {
+    lastGenerateQuestionArgs = null;
+    const res = await handler(event("POST", "/question", {
+      category: "Chaos",
+      questionNumber: 1,
+      totalQuestions: 20,
+      playerNames: ["A", "B"],
+      relationshipStage: 3,
+    }, { "x-session-token": token() }));
+    assert.equal(res.statusCode, 200);
+    assert.ok(lastGenerateQuestionArgs);
+    assert.equal(lastGenerateQuestionArgs.relationshipStage, 3);
+  });
+
+  await run("POST /question handles relationshipStage clamping", async () => {
+    lastGenerateQuestionArgs = null;
+    await handler(event("POST", "/question", {
+      category: "Chaos",
+      questionNumber: 1,
+      totalQuestions: 20,
+      playerNames: ["A", "B"],
+      relationshipStage: 10,
+    }, { "x-session-token": token() }));
+    assert.equal(lastGenerateQuestionArgs.relationshipStage, 3);
+
+    lastGenerateQuestionArgs = null;
+    await handler(event("POST", "/question", {
+      category: "Chaos",
+      questionNumber: 1,
+      totalQuestions: 20,
+      playerNames: ["A", "B"],
+      relationshipStage: -5,
+    }, { "x-session-token": token() }));
+    assert.equal(lastGenerateQuestionArgs.relationshipStage, 0);
   });
 
   await run("POST /vibe accepts a valid request", async () => {

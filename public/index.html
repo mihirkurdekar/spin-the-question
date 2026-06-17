@@ -98,6 +98,105 @@
       font-weight: 700;
     }
     .toggle input { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
+    .slider-field {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+    }
+    .slider-label-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .stage-text-badge {
+      background: var(--accent);
+      color: var(--accent-ink);
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      text-transform: none;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    .slider-container {
+      position: relative;
+      width: 100%;
+      height: 28px;
+      display: flex;
+      align-items: center;
+    }
+    #stageSlider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--line);
+      outline: none;
+      margin: 0;
+      position: relative;
+      z-index: 2;
+      cursor: pointer;
+    }
+    #stageSlider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--ink);
+      cursor: pointer;
+      transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 100ms ease;
+    }
+    #stageSlider::-webkit-slider-thumb:hover, #stageSlider::-webkit-slider-thumb:active {
+      transform: scale(1.25);
+    }
+    #stageSlider::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--ink);
+      cursor: pointer;
+      transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 100ms ease;
+    }
+    #stageSlider::-moz-range-thumb:hover, #stageSlider::-moz-range-thumb:active {
+      transform: scale(1.25);
+    }
+    .slider-ticks {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      height: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .tick {
+      width: 8px;
+      height: 8px;
+      background: var(--line);
+      border-radius: 50%;
+      transform: translateY(-4px);
+      transition: background-color 200ms ease;
+    }
+    .tick.active {
+      background: var(--accent);
+    }
+    .stage-desc {
+      font-size: 15px;
+      line-height: 1.45;
+      color: var(--muted);
+      margin: 2px 0 0 0;
+      min-height: 44px;
+    }
     .primary, .secondary, .danger {
       min-height: 52px;
       border: 0;
@@ -211,6 +310,22 @@
       font-weight: 800;
     }
     .banner.show { display: flex; }
+    .footer {
+      margin-top: auto;
+      padding-top: 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+      transition: color 150ms ease;
+    }
+    .footer a:hover {
+      color: var(--ink);
+    }
   </style>
 </head>
 <body>
@@ -228,10 +343,28 @@
       <div class="field-grid">
         <label>Your name <input id="nameA" maxlength="36" autocomplete="given-name"></label>
         <label>Their name <input id="nameB" maxlength="36" autocomplete="given-name"></label>
-        <label class="toggle"><input id="keepLight" type="checkbox" checked> Keep it light</label>
+        <div class="slider-field">
+          <div class="slider-label-header">
+            <span>Connection Stage</span>
+            <span id="stageText" class="stage-text-badge">First Date</span>
+          </div>
+          <div class="slider-container">
+            <input type="range" id="stageSlider" min="0" max="3" value="0" step="1" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0" aria-valuetext="First Date">
+            <div class="slider-ticks">
+              <span class="tick active" data-val="0"></span>
+              <span class="tick" data-val="1"></span>
+              <span class="tick" data-val="2"></span>
+              <span class="tick" data-val="3"></span>
+            </div>
+          </div>
+          <p id="stageDesc" class="stage-desc">Light icebreakers & fun banter to get started.</p>
+        </div>
       </div>
       <div id="warmPill" class="warm-pill" hidden>Warming up...</div>
       <button id="startBtn" class="primary">Let's play →</button>
+      <footer class="footer">
+        Created by <a href="https://github.com/mihirkurdekar/spin-the-question" target="_blank" rel="noopener noreferrer">Mihir K</a>
+      </footer>
     </main>
 
     <main id="spin" class="screen stack">
@@ -310,7 +443,7 @@
     let wheelRotation = 0;
     let spinning = false;
 
-    function blankState(players = ["You", "Them"], keepItLight = true) {
+    function blankState(players = ["You", "Them"], relationshipStage = 0) {
       return {
         players,
         currentPlayerIndex: 0,
@@ -322,7 +455,7 @@
         noSkipStreak: 0,
         wildcardReady: false,
         wildcardUnlockedNotice: false,
-        keepItLight,
+        relationshipStage,
         prefetch: {},
         sessionToken: token,
       };
@@ -333,6 +466,10 @@
         const parsed = JSON.parse(sessionStorage.getItem(STORE_KEY));
         if (parsed && Array.isArray(parsed.players) && parsed.players.length === 2) {
           parsed.sessionToken = token;
+          if (typeof parsed.relationshipStage !== "number") {
+            parsed.relationshipStage = parsed.keepItLight === false ? 2 : 0;
+            delete parsed.keepItLight;
+          }
           return parsed;
         }
       } catch (_) {}
@@ -483,7 +620,7 @@
         questionNumber: state.questionNumber,
         totalQuestions: TOTAL_QUESTIONS,
         playerNames: state.players,
-        keepItLight: state.keepItLight,
+        relationshipStage: state.relationshipStage,
       });
     }
 
@@ -497,7 +634,7 @@
         questionNumber: state.questionNumber + 1,
         totalQuestions: TOTAL_QUESTIONS,
         playerNames: state.players,
-        keepItLight: state.keepItLight,
+        relationshipStage: state.relationshipStage,
       }).then((data) => {
         state.prefetch[key] = data;
         const keys = Object.keys(state.prefetch);
@@ -633,13 +770,13 @@
     function startGame() {
       const a = $("nameA").value.trim() || "You";
       const b = $("nameB").value.trim() || "Them";
-      state = blankState([a, b], $("keepLight").checked);
+      state = blankState([a, b], parseInt($("stageSlider").value));
       saveState();
       setSpinScreen();
     }
 
     function playAgain() {
-      state = blankState(state.players, state.keepItLight);
+      state = blankState(state.players, state.relationshipStage);
       saveState();
       setSpinScreen();
     }
@@ -668,6 +805,37 @@
       });
     }
 
+    const STAGE_DETAILS = [
+      { label: "First Date", desc: "Light icebreakers & fun banter to get started. Keeps the conversation safe and playful." },
+      { label: "Dating", desc: "Playful stories & getting-to-know-you topics. Explores personal preferences and fun memories." },
+      { label: "Committed", desc: "Deeper alignment, life goals & values. Direct questions exploring trust and relationship dynamics." },
+      { label: "Married / Long-Term", desc: "Intimate reflections, deep vulnerability & shared life. Perfect for long-term partners." }
+    ];
+
+    function updateSlider(val) {
+      const stage = STAGE_DETAILS[val] || STAGE_DETAILS[0];
+      $("stageText").textContent = stage.label;
+      $("stageDesc").textContent = stage.desc;
+      
+      const ticks = document.querySelectorAll(".slider-ticks .tick");
+      ticks.forEach((tick, idx) => {
+        tick.classList.toggle("active", idx <= val);
+      });
+      $("stageSlider").setAttribute("aria-valuenow", val);
+      $("stageSlider").setAttribute("aria-valuetext", stage.label);
+    }
+
+    $("stageSlider").addEventListener("input", (e) => {
+      updateSlider(parseInt(e.target.value));
+    });
+
+    function initSlider() {
+      if (state && typeof state.relationshipStage === "number") {
+        $("stageSlider").value = state.relationshipStage;
+      }
+      updateSlider(parseInt($("stageSlider").value));
+    }
+
     $("startBtn").addEventListener("click", startGame);
     $("spinBtn").addEventListener("click", spin);
     $("doneBtn").addEventListener("click", () => completeQuestion(false));
@@ -693,6 +861,7 @@
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
     warmup();
     drawWheel();
+    initSlider();
   </script>
 </body>
 </html>

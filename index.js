@@ -209,7 +209,7 @@ async function handlePostQuestion(ctx, event) {
     return buildResponse(parsed.status, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
   }
 
-  const { category, questionNumber, totalQuestions, playerNames, keepItLight } = parsed.body || {};
+  const { category, questionNumber, totalQuestions, playerNames, keepItLight, relationshipStage } = parsed.body || {};
   if (
     typeof category !== "string" ||
     !ALLOWED_CATEGORIES.has(category) ||
@@ -223,12 +223,19 @@ async function handlePostQuestion(ctx, event) {
     return buildResponse(403, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
   }
 
+  let stage = 0;
+  if (typeof relationshipStage === "number") {
+    stage = Math.max(0, Math.min(3, Math.floor(relationshipStage)));
+  } else if (keepItLight === false) {
+    stage = 2;
+  }
+
   const result = await question.generateQuestion({
     category,
     questionNumber,
     totalQuestions,
     playerNames,
-    keepItLight: keepItLight !== false,
+    relationshipStage: stage,
   });
 
   const outcome = result.source === "fallback" ? "fallback" : "ok";

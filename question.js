@@ -22,17 +22,23 @@ function getModel() {
   return cachedClient;
 }
 
-// Build the prompt. Pulled out so it's testable.
-function buildQuestionPrompt({ category, questionNumber, totalQuestions, playerNames, keepItLight }) {
-  const keepItLightClause = keepItLight
-    ? `Avoid questions about past relationships, family conflict, mental health, finances, or anything that could read as a personal attack. Keep it playful.`
-    : `Tone can be direct — these are adults getting to know each other.`;
+const STAGE_CLAUSES = {
+  0: "The players are on a first date. Keep questions safe, fun, lighthearted, and playful. Avoid sensitive, heavy, or overly intimate topics like past relationships, family conflicts, mental health, or deep finances.",
+  1: "The players are actively dating. They want to get to know each other beyond surface level. Prompts can be slightly more personal, covering funny memories, lifestyle preferences, and general future dreams, but still keeping it relatively comfortable.",
+  2: "The players are in a committed relationship. They know each other well and are ready for deeper, more meaningful conversations about values, fears, relationship dynamics, and life goals. Tone can be direct.",
+  3: "The players are long-term/married partners. They have a deep history together. Questions can range from highly intimate, deep vulnerabilities, shared histories, spicy/playful topics, to long-term alignment and mature reflections."
+};
 
-  return `You are generating questions for a first-date conversation game called "Spin the Question".
+// Build the prompt. Pulled out so it's testable.
+function buildQuestionPrompt({ category, questionNumber, totalQuestions, playerNames, relationshipStage }) {
+  const stage = (typeof relationshipStage === "number") ? relationshipStage : 0;
+  const stageClause = STAGE_CLAUSES[stage] || STAGE_CLAUSES[0];
+
+  return `You are generating questions for a conversation game called "Spin the Question".
 The two players are ${playerNames[0]} and ${playerNames[1]}.
 This is question ${questionNumber} of ${totalQuestions} — calibrate depth accordingly (earlier = lighter, later = deeper).
 Category: ${category}
-${keepItLightClause}
+Relationship context: ${stageClause}
 
 Respond with ONLY a valid JSON object, no markdown, no explanation:
 {
@@ -56,7 +62,7 @@ function buildVibePrompt({ answeredCount, categoryCounts, skips, playerNames }) 
     .map(([c, n]) => `${c} (${n})`)
     .join(", ") || "no categories recorded";
 
-  return `You are writing a one-sentence "vibe summary" for two people who just played a first-date conversation game called "Spin the Question". The players are ${playerNames[0]} and ${playerNames[1]}. They answered ${answeredCount} questions. Their top categories were ${top}.
+  return `You are writing a one-sentence "vibe summary" for two people who just played a conversation game called "Spin the Question". The players are ${playerNames[0]} and ${playerNames[1]}. They answered ${answeredCount} questions. Their top categories were ${top}.
 
 Respond with ONLY a valid JSON object, no markdown, no explanation:
 { "vibe": "You two seem like the kind of people who would..." }
@@ -84,8 +90,8 @@ function pickFallbackVibe({ playerNames, answeredCount, categoryCounts }) {
   return `${playerNames[0]} & ${playerNames[1]} answered ${answeredCount} questions — ${top} lovers with a soft spot for ${second}.`;
 }
 
-async function generateQuestion({ category, questionNumber, totalQuestions, playerNames, keepItLight = true }) {
-  const prompt = buildQuestionPrompt({ category, questionNumber, totalQuestions, playerNames, keepItLight });
+async function generateQuestion({ category, questionNumber, totalQuestions, playerNames, relationshipStage = 0 }) {
+  const prompt = buildQuestionPrompt({ category, questionNumber, totalQuestions, playerNames, relationshipStage });
   const t0 = Date.now();
   let geminiMs = 0;
   try {
