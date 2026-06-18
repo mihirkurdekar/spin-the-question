@@ -6,7 +6,7 @@ See [`SPEC.md`](./SPEC.md) for the full product spec.
 
 ## Stack
 - **Frontend:** vanilla HTML/CSS/JS in `public/index.html`. No build step. PWA-installable.
-- **Backend:** Node 20.x Lambda handler with HMAC session tokens, per-IP rate limiting, and the Google Gemini API.
+- **Backend:** Node 22.x Lambda handler with HMAC session tokens, per-IP rate limiting, and the Google Gemini API.
 - **Hosting:** AWS Lambda Function URL. No API Gateway. No database.
 
 ## Local development
@@ -57,29 +57,19 @@ FORCE_FALLBACKS=1 node -e "require('./question.js').generateQuestion({ category:
 
 ## Deploy
 
-### Prerequisites
-- AWS CLI v2 installed and configured (`aws configure`)
-- A Google AI Studio API key from a **billing-disabled** Google Cloud project (enabling billing on the same project removes the free tier)
-- Node 20.x
+This project uses Terraform (see the `terraform/` directory) to manage deployment of the Lambda and Function URL.
 
-### First-time deploy
+A helper script is available at `scripts/deploy-terraform.sh` for common deploy flows.
+
+### Deploy with Terraform
+
 ```bash
-chmod +x deploy.sh
-GEMINI_API_KEY=... ./deploy.sh
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars
+# Edit terraform/terraform.tfvars with gemini_api_key, hmac_secret, self_origin, allowed_origins, and AWS settings.
+./scripts/deploy-terraform.sh
 ```
 
-The script will:
-1. Install production dependencies with `npm ci --omit=dev` when a lockfile exists, otherwise `npm install --omit=dev`
-2. Bundle into `function.zip`
-3. Create the Lambda function (or update code on an existing one)
-4. Set env vars (`GEMINI_API_KEY` from your shell, `HMAC_SECRET` generated with `openssl rand -hex 32` if not set)
-5. Enable the Function URL with CORS restricted to the URL's own origin
-6. Print the Function URL
-
-### Subsequent deploys
-```bash
-./deploy.sh   # preserves env vars; only updates code
-```
+The script removes any existing `function.zip`, initializes Terraform, and performs `terraform apply -auto-approve` using `terraform/terraform.tfvars` by default.
 
 ## Terraform deploy
 
@@ -160,7 +150,7 @@ spin-the-question/
 ├── test/
 │   ├── events/        # Mock Lambda events for local testing
 │   └── handler.test.js
-├── deploy.sh
+
 ├── package.json
 ├── .env.example
 ├── .gitignore

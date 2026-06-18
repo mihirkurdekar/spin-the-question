@@ -5,13 +5,14 @@
   "description": "Solo-phone first-date game with AI-generated questions. Mobile-first PWA on AWS Lambda.",
   "main": "index.js",
   "scripts": {
-    "start": "node -e \"console.log('Use deploy.sh to deploy to AWS, or see README for local dev.')\"",
+    "start": "node -e \"console.log('Deployment is managed via terraform; see README for local dev.')\"",
     "dev": "node scripts/dev-server.js",
+    "deploy": "./scripts/deploy-terraform.sh",
     "test": "node test/handler.test.js",
     "make-icons": "node scripts/make-icons.js"
   },
   "engines": {
-    "node": "20.x"
+    "node": "22.x"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1"

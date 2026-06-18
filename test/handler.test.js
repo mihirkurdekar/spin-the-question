@@ -86,7 +86,10 @@ async function run(name, fn) {
       keepItLight: true,
     }, { "x-session-token": token() }));
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(JSON.parse(res.body), {
+    const parsed = JSON.parse(res.body);
+    // correlationId is injected into JSON responses; ignore it for equality check
+    delete parsed.correlationId;
+    assert.deepEqual(parsed, {
       question: "Question for Chaos?",
       tip: "Keep it moving.",
     });

@@ -90,7 +90,7 @@ function pickFallbackVibe({ playerNames, answeredCount, categoryCounts }) {
   return `${playerNames[0]} & ${playerNames[1]} answered ${answeredCount} questions — ${top} lovers with a soft spot for ${second}.`;
 }
 
-async function generateQuestion({ category, questionNumber, totalQuestions, playerNames, relationshipStage = 0 }) {
+async function generateQuestion({ category, questionNumber, totalQuestions, playerNames, relationshipStage = 0, correlationId }) {
   const prompt = buildQuestionPrompt({ category, questionNumber, totalQuestions, playerNames, relationshipStage });
   const t0 = Date.now();
   let geminiMs = 0;
@@ -116,18 +116,21 @@ async function generateQuestion({ category, questionNumber, totalQuestions, play
     };
   } catch (err) {
     // Log and fall back. Never throw out — the spec says never show a blank screen.
-    console.log(JSON.stringify({
+    const out = {
       type: "question_gemini_error",
       ts: Date.now(),
       category,
       error: String(err && err.message || err),
-    }));
+      stack: err && err.stack,
+    };
+    if (typeof correlationId !== "undefined" && correlationId) out.correlationId = correlationId;
+    console.error(JSON.stringify(out));
     const fb = fallbacks.get(category);
     return { ...fb, latencyMs: Date.now() - t0, geminiMs };
   }
 }
 
-async function generateVibe({ answeredCount, categoryCounts, skips, playerNames }) {
+async function generateVibe({ answeredCount, categoryCounts, skips, playerNames, correlationId }) {
   const prompt = buildVibePrompt({ answeredCount, categoryCounts, skips, playerNames });
   const t0 = Date.now();
   try {
@@ -141,11 +144,14 @@ async function generateVibe({ answeredCount, categoryCounts, skips, playerNames 
     if (!parsed || typeof parsed.vibe !== "string") throw new Error("Gemini returned JSON but missing vibe field");
     return { vibe: parsed.vibe, source: "gemini", latencyMs: Date.now() - t0 };
   } catch (err) {
-    console.log(JSON.stringify({
+    const out = {
       type: "vibe_gemini_error",
       ts: Date.now(),
       error: String(err && err.message || err),
-    }));
+      stack: err && err.stack,
+    };
+    if (typeof correlationId !== "undefined" && correlationId) out.correlationId = correlationId;
+    console.error(JSON.stringify(out));
     return { vibe: pickFallbackVibe({ playerNames, answeredCount, categoryCounts }), source: "fallback", latencyMs: Date.now() - t0 };
   }
 }

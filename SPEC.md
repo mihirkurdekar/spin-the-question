@@ -19,7 +19,7 @@ A lightweight mobile-first web app deployed on AWS Lambda. No accounts, no insta
 Browser (mobile-first HTML/CSS/JS, PWA-installable)
         │  HMAC-signed requests only
         ▼
-AWS Lambda (Node.js 20.x)
+AWS Lambda (Node.js 22.x)
   ├── GET   /         → serves index.html (embeds session token)
   ├── POST  /question → validates token → calls Gemini → returns {question, tip}
   ├── POST  /vibe     → validates token → calls Gemini → returns {vibe}
@@ -30,7 +30,7 @@ Google Gemini API (gemini-2.5-flash, responseMimeType: application/json)
 ```
 
 ### Infrastructure
-- **Runtime:** Node.js 20.x on AWS Lambda, 256MB memory, 10s timeout
+- **Runtime:** Node.js 22.x on AWS Lambda, 256MB memory, 10s timeout
 - **Trigger:** Lambda Function URL (HTTPS, no API Gateway required)
 - **Environment variables** stored in Lambda:
   - `GEMINI_API_KEY` — from Google AI Studio (free, no card)

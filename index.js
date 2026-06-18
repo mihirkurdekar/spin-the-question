@@ -10,6 +10,15 @@ const fs = require("fs");
 const question = require("./question.js");
 const { check: rateCheck } = require("./rateLimit.js");
 
+// Global process-level handlers to ensure uncaught errors are logged in CloudWatch
+process.on("uncaughtException", (err) => {
+  console.error(JSON.stringify({ type: "uncaughtException", ts: Date.now(), error: String(err && err.message || err), stack: err && err.stack }));
+});
+process.on("unhandledRejection", (reason) => {
+  console.error(JSON.stringify({ type: "unhandledRejection", ts: Date.now(), reason: String(reason) }));
+});
+// Current request correlation id, set at handler entry and cleared after.
+let CURRENT_CORRELATION_ID = null;
 // ---------- Config ----------
 
 // SELF_ORIGIN can be overridden via env. Used for the Origin check and CORS
@@ -109,14 +118,34 @@ function corsHeadersFor(requestOrigin) {
 
 function buildResponse(status, body, contentType, requestOrigin, extraHeaders = {}) {
   const isBuffer = Buffer.isBuffer(body);
+  const headers = {
+    "Content-Type": contentType,
+    ...corsHeadersFor(requestOrigin),
+    ...extraHeaders,
+  };
+  if (!headers["X-Correlation-Id"] && CURRENT_CORRELATION_ID) headers["X-Correlation-Id"] = CURRENT_CORRELATION_ID;
+
+  let outBody = body;
+  // If this is a JSON response and the body is a string containing a JSON
+  // object, inject the correlationId field so clients see it inside the
+  // response body as well as the header.
+  try {
+    const ct = (contentType || "").toLowerCase();
+    if (!isBuffer && typeof outBody === "string" && ct.includes("application/json")) {
+      const parsed = JSON.parse(outBody);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        if (!parsed.correlationId && CURRENT_CORRELATION_ID) parsed.correlationId = CURRENT_CORRELATION_ID;
+        outBody = JSON.stringify(parsed);
+      }
+    }
+  } catch (_) {
+    // If parsing fails, leave the body unchanged.
+  }
+
   return {
     statusCode: status,
-    headers: {
-      "Content-Type": contentType,
-      ...corsHeadersFor(requestOrigin),
-      ...extraHeaders,
-    },
-    body: isBuffer ? body.toString("base64") : body,
+    headers,
+    body: isBuffer ? body.toString("base64") : outBody,
     isBase64Encoded: isBuffer,
   };
 }
@@ -130,6 +159,7 @@ function getRequestContext(event) {
   const requestContext = event.requestContext || {};
   return {
     requestId: requestContext.requestId || lower["x-amzn-trace-id"] || "local",
+    correlationId: lower["x-correlation-id"] || lower["x-request-id"] || null,
     ip: lower["x-forwarded-for"]?.split(",")[0].trim() || requestContext.http?.sourceIp || "0.0.0.0",
     ua: lower["user-agent"] || "",
     referer: lower["referer"] || lower["referrer"] || "",
@@ -140,7 +170,21 @@ function getRequestContext(event) {
 }
 
 function logLine(line) {
+  if (line && !line.correlationId && CURRENT_CORRELATION_ID) line.correlationId = CURRENT_CORRELATION_ID;
   console.log(JSON.stringify(line));
+}
+
+function logError(err, ctx) {
+  const out = {
+    type: "internal_error",
+    requestId: ctx?.requestId || "local",
+    ts: Date.now(),
+    error: String(err && err.message || err),
+    stack: err && err.stack,
+  };
+  if (ctx?.correlationId) out.correlationId = ctx.correlationId;
+  else if (CURRENT_CORRELATION_ID) out.correlationId = CURRENT_CORRELATION_ID;
+  console.error(JSON.stringify(out));
 }
 
 // ---------- Handlers ----------
@@ -187,13 +231,25 @@ function parseJsonBody(event) {
 
 async function handlePostQuestion(ctx, event) {
   const token = (event.headers?.["X-Session-Token"] || event.headers?.["x-session-token"] || "");
+  const bodyLength = event.body ? (typeof event.body === "string" ? Buffer.byteLength(event.body, "utf8") : event.body.length) : 0;
+  logLine({
+    type: "question_request",
+    requestId: ctx.requestId,
+    ts: Date.now(),
+    ip: ctx.ip,
+    path: ctx.rawPath,
+    origin: ctx.origin,
+    tokenPresent: Boolean(token),
+    bodyLength,
+  });
+
   if (!validateToken(token)) {
-    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "invalid_token" });
+    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "invalid_token", tokenPresent: Boolean(token) });
     return buildResponse(403, "Forbidden", "application/json", ctx.origin);
   }
 
   if (SELF_ORIGIN && ctx.origin && ctx.origin !== SELF_ORIGIN) {
-    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "forbidden" });
+    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "forbidden", reason: "origin_mismatch", origin: ctx.origin, expected: SELF_ORIGIN });
     return buildResponse(403, "Forbidden", "application/json", ctx.origin);
   }
 
@@ -205,7 +261,7 @@ async function handlePostQuestion(ctx, event) {
 
   const parsed = parseJsonBody(event);
   if (!parsed.ok) {
-    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: parsed.reason });
+    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: parsed.reason, bodyLength });
     return buildResponse(parsed.status, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
   }
 
@@ -219,7 +275,18 @@ async function handlePostQuestion(ctx, event) {
     playerNames.length !== 2 ||
     !playerNames.every((n) => typeof n === "string" && n.length > 0)
   ) {
-    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "forbidden", reason: "bad body" });
+    logLine({
+      type: "question",
+      requestId: ctx.requestId,
+      ts: Date.now(),
+      ip: ctx.ip,
+      outcome: "forbidden",
+      reason: "bad body",
+      category: typeof category,
+      questionNumber: typeof questionNumber,
+      totalQuestions: typeof totalQuestions,
+      playerNames: Array.isArray(playerNames) ? playerNames.map((n) => typeof n === "string" ? n : typeof n) : typeof playerNames,
+    });
     return buildResponse(403, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
   }
 
@@ -230,13 +297,20 @@ async function handlePostQuestion(ctx, event) {
     stage = 2;
   }
 
-  const result = await question.generateQuestion({
-    category,
-    questionNumber,
-    totalQuestions,
-    playerNames,
-    relationshipStage: stage,
-  });
+  let result;
+  try {
+    result = await question.generateQuestion({
+      category,
+      questionNumber,
+      totalQuestions,
+      playerNames,
+      relationshipStage: stage,
+      correlationId: ctx.correlationId,
+    });
+  } catch (err) {
+    logError(err, ctx);
+    return buildResponse(500, JSON.stringify({ error: "internal_server_error" }), "application/json", ctx.origin);
+  }
 
   const outcome = result.source === "fallback" ? "fallback" : "ok";
   logLine({
@@ -248,7 +322,6 @@ async function handlePostQuestion(ctx, event) {
     questionNumber,
     latencyMs: result.latencyMs,
     geminiMs: result.geminiMs,
-    cacheHit: false,
     outcome,
   });
 
@@ -291,11 +364,17 @@ async function handlePostVibe(ctx, event) {
     return buildResponse(403, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
   }
 
-  const result = await question.generateVibe({ answeredCount, categoryCounts, skips, playerNames });
-  const outcome = result.source === "fallback" ? "fallback" : "ok";
-  logLine({ type: "vibe", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, latencyMs: result.latencyMs, outcome });
+  let vibeResult;
+  try {
+    vibeResult = await question.generateVibe({ answeredCount, categoryCounts, skips, playerNames, correlationId: ctx.correlationId });
+  } catch (err) {
+    logError(err, ctx);
+    return buildResponse(500, JSON.stringify({ error: "internal_server_error" }), "application/json", ctx.origin);
+  }
+  const outcome = vibeResult.source === "fallback" ? "fallback" : "ok";
+  logLine({ type: "vibe", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, latencyMs: vibeResult.latencyMs, outcome });
 
-  return buildResponse(200, JSON.stringify({ vibe: result.vibe }), "application/json", ctx.origin);
+  return buildResponse(200, JSON.stringify({ vibe: vibeResult.vibe }), "application/json", ctx.origin);
 }
 
 function handleOptions(ctx) {
@@ -306,6 +385,7 @@ function handleOptions(ctx) {
     "Access-Control-Max-Age": "86400",
     ...corsHeadersFor(ctx.origin),
   };
+  if (!headers["X-Correlation-Id"] && CURRENT_CORRELATION_ID) headers["X-Correlation-Id"] = CURRENT_CORRELATION_ID;
   return { statusCode: 204, headers, body: "" };
 }
 
@@ -313,6 +393,9 @@ function handleOptions(ctx) {
 
 exports.handler = async (event) => {
   const ctx = getRequestContext(event);
+  // Ensure a correlation id is set for this request
+  if (!ctx.correlationId) ctx.correlationId = crypto.randomUUID();
+  CURRENT_CORRELATION_ID = ctx.correlationId;
 
   try {
     if (ctx.method === "OPTIONS") {
@@ -328,8 +411,10 @@ exports.handler = async (event) => {
     }
     return buildResponse(403, "Forbidden", "application/json", ctx.origin);
   } catch (err) {
-    // Catch-all so the user never sees a 500. The error is logged; the body is generic.
-    logLine({ type: "error", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, error: String(err && err.message || err), stack: err && err.stack });
-    return buildResponse(403, "Forbidden", "application/json", ctx.origin);
+    // Catch-all so the error is logged to CloudWatch and a 500 is returned.
+    logError(err, ctx);
+    return buildResponse(500, JSON.stringify({ error: "internal_server_error" }), "application/json", ctx.origin);
+  } finally {
+    CURRENT_CORRELATION_ID = null;
   }
 };

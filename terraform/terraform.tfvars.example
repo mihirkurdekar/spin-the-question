@@ -3,7 +3,7 @@ source_dir     = ".."
 role_name      = "spin-the-question-lambda-role"
 function_name  = "spin-the-question"
 handler        = "index.handler"
-runtime        = "nodejs20.x"
+runtime        = "nodejs22.x"
 
 gemini_api_key = "YOUR_GEMINI_API_KEY"
 hmac_secret    = "YOUR_HMAC_SECRET"

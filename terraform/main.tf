@@ -76,6 +76,8 @@ resource "aws_lambda_function" "spin_the_question" {
   role          = aws_iam_role.lambda_exec.arn
   filename       = data.archive_file.lambda_zip.output_path
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  timeout        = 30
+  memory_size    = 256
 
   // Environment variables – keep secrets out of the code base.
   environment {
