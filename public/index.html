@@ -419,7 +419,6 @@
       <button id="endGameBtn" class="danger">End game</button>
       <button id="howBtn" class="secondary">How to play</button>
       <p id="howText" class="modal-text" hidden>Take turns spinning, answer what lands, and use skips when a prompt is not your thing.</p>
-      <button id="closeSheetBtn" class="secondary">Close</button>
     </div>
   </div>
   <div id="liveRegion" class="live" aria-live="assertive"></div>
@@ -590,6 +589,15 @@
       show("spin");
     }
 
+    function showSessionExpired() {
+      // Close any open menus first
+      $("sheetBackdrop").classList.remove("open");
+      $("sheetBackdrop").setAttribute("aria-hidden", "true");
+      
+      // Show alert
+      alert("Your session expired. Please refresh the page and restart the game.");
+    }
+
     async function apiPost(path, body) {
       const res = await fetch(path, {
         method: "POST",
@@ -599,8 +607,16 @@
         },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-      return res.json();
+      const json = await res.json();
+      if (!res.ok) {
+        // Check if session expired
+        if (json.reason === "expired") {
+          showSessionExpired();
+          throw new Error("Session expired");
+        }
+        throw new Error(`Request failed: ${res.status}`);
+      }
+      return json;
     }
 
     async function getQuestion(category) {
@@ -847,10 +863,12 @@
       $("sheetBackdrop").classList.add("open");
       $("sheetBackdrop").setAttribute("aria-hidden", "false");
     });
-    $("closeSheetBtn").addEventListener("click", () => {
-      $("sheetBackdrop").classList.remove("open");
-      $("sheetBackdrop").setAttribute("aria-hidden", "true");
-      $("howText").hidden = true;
+    $("sheetBackdrop").addEventListener("click", (e) => {
+      if (e.target === $("sheetBackdrop")) {
+        $("sheetBackdrop").classList.remove("open");
+        $("sheetBackdrop").setAttribute("aria-hidden", "true");
+        $("howText").hidden = true;
+      }
     });
     $("howBtn").addEventListener("click", () => $("howText").hidden = !$("howText").hidden);
     $("endGameBtn").addEventListener("click", () => {

@@ -81,23 +81,31 @@ function mintToken() {
   return `${ts}.${sig}`;
 }
 
+// Returns { valid: boolean, reason?: string } where reason can be:
+// "expired" (token too old), "invalid_format", "invalid_signature", or undefined if valid
 function validateToken(token) {
-  if (typeof token !== "string") return false;
+  if (typeof token !== "string") return { valid: false, reason: "invalid_format" };
   const dot = token.indexOf(".");
-  if (dot < 0) return false;
+  if (dot < 0) return { valid: false, reason: "invalid_format" };
   const ts = token.slice(0, dot);
   const sig = token.slice(dot + 1);
-  if (!/^\d+$/.test(ts) || !/^[a-f0-9]{64}$/.test(sig)) return false;
+  if (!/^\d+$/.test(ts) || !/^[a-f0-9]{64}$/.test(sig)) {
+    return { valid: false, reason: "invalid_format" };
+  }
   const tsNum = parseInt(ts, 10);
   const age = Date.now() - tsNum;
-  if (!Number.isFinite(age) || age < 0 || age > TOKEN_TTL_MS) return false;
+  if (!Number.isFinite(age) || age < 0) return { valid: false, reason: "invalid_format" };
+  if (age > TOKEN_TTL_MS) return { valid: false, reason: "expired" };
   const expected = crypto
     .createHmac("sha256", process.env.HMAC_SECRET || "")
     .update(ts)
     .digest("hex");
   const a = Buffer.from(sig, "hex");
   const b = Buffer.from(expected, "hex");
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  if (!(a.length === b.length && crypto.timingSafeEqual(a, b))) {
+    return { valid: false, reason: "invalid_signature" };
+  }
+  return { valid: true };
 }
 
 // ---------- CORS ----------
@@ -243,9 +251,11 @@ async function handlePostQuestion(ctx, event) {
     bodyLength,
   });
 
-  if (!validateToken(token)) {
-    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "invalid_token", tokenPresent: Boolean(token) });
-    return buildResponse(403, "Forbidden", "application/json", ctx.origin);
+  const tokenCheck = validateToken(token);
+  if (!tokenCheck.valid) {
+    const errorBody = { error: "forbidden", reason: tokenCheck.reason };
+    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "invalid_token", tokenPresent: Boolean(token), reason: tokenCheck.reason, correlationId: ctx.correlationId });
+    return buildResponse(403, JSON.stringify(errorBody), "application/json", ctx.origin);
   }
 
   if (SELF_ORIGIN && ctx.origin && ctx.origin !== SELF_ORIGIN) {
@@ -330,9 +340,11 @@ async function handlePostQuestion(ctx, event) {
 
 async function handlePostVibe(ctx, event) {
   const token = (event.headers?.["X-Session-Token"] || event.headers?.["x-session-token"] || "");
-  if (!validateToken(token)) {
-    logLine({ type: "vibe", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "invalid_token" });
-    return buildResponse(403, "Forbidden", "application/json", ctx.origin);
+  const tokenCheck = validateToken(token);
+  if (!tokenCheck.valid) {
+    const errorBody = { error: "forbidden", reason: tokenCheck.reason };
+    logLine({ type: "vibe", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "invalid_token", reason: tokenCheck.reason, correlationId: ctx.correlationId });
+    return buildResponse(403, JSON.stringify(errorBody), "application/json", ctx.origin);
   }
 
   if (SELF_ORIGIN && ctx.origin && ctx.origin !== SELF_ORIGIN) {
