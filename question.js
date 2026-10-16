@@ -93,17 +93,9 @@ Respond with ONLY a valid JSON object, no markdown, no explanation:
 Max 30 words. Warm, specific, a little playful. Avoid clichés like "soulmates" and "perfect match."`;
 }
 
-// Two-pass robust JSON parser. Strips ```json``` fences and tries again.
+// Parse the model response as JSON.
 function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
-  } catch (_) {
-    const stripped = String(text)
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/```\s*$/, "")
-      .trim();
-    return JSON.parse(stripped);
-  }
+  return JSON.parse(text);
 }
 
 // Fallback vibes removed — game no longer tracks players or counts
@@ -129,10 +121,19 @@ async function generateQuestion({ category, stage = 0, relationship = "dating", 
         model: getModelName(), // Use rotating model
         contents: prompt,
         config: {
-          maxOutputTokens: 200,
+          maxOutputTokens: 512,
           temperature: 0.9,
-          // The new SDK supports responseMimeType safely - it will auto-parse JSON
           responseMimeType: "application/json",
+          thinkingConfig: { thinkingBudget: 0 },
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              question: { type: "STRING" },
+              tip: { type: "STRING" },
+            },
+            required: ["question", "tip"],
+            propertyOrdering: ["question", "tip"],
+          },
         },
       });
       geminiMs = Date.now() - t1;
