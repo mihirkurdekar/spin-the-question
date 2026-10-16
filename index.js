@@ -238,7 +238,6 @@ function parseJsonBody(event) {
 }
 
 async function handlePostQuestion(ctx, event) {
-  const token = (event.headers?.["X-Session-Token"] || event.headers?.["x-session-token"] || "");
   const bodyLength = event.body ? (typeof event.body === "string" ? Buffer.byteLength(event.body, "utf8") : event.body.length) : 0;
   logLine({
     type: "question_request",
@@ -247,22 +246,10 @@ async function handlePostQuestion(ctx, event) {
     ip: ctx.ip,
     path: ctx.rawPath,
     origin: ctx.origin,
-    tokenPresent: Boolean(token),
     bodyLength,
   });
 
-  const tokenCheck = validateToken(token);
-  if (!tokenCheck.valid) {
-    const errorBody = { error: "forbidden", reason: tokenCheck.reason };
-    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "invalid_token", tokenPresent: Boolean(token), reason: tokenCheck.reason, correlationId: ctx.correlationId });
-    return buildResponse(403, JSON.stringify(errorBody), "application/json", ctx.origin);
-  }
-
-  if (SELF_ORIGIN && ctx.origin && ctx.origin !== SELF_ORIGIN) {
-    logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "forbidden", reason: "origin_mismatch", origin: ctx.origin, expected: SELF_ORIGIN });
-    return buildResponse(403, "Forbidden", "application/json", ctx.origin);
-  }
-
+  // Rate limit per IP to prevent abuse
   const rl = rateCheck(ctx.ip);
   if (!rl.allowed) {
     logLine({ type: "question", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "rate_limited", retryAfterMs: rl.retryAfterMs });
@@ -275,15 +262,13 @@ async function handlePostQuestion(ctx, event) {
     return buildResponse(parsed.status, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
   }
 
-  const { category, questionNumber, totalQuestions, playerNames, keepItLight, relationshipStage } = parsed.body || {};
+  const { category, stage, relationship } = parsed.body || {};
+  const relationshipType = typeof relationship === "string" ? relationship : "dating"; // default to dating
+
   if (
     typeof category !== "string" ||
     !ALLOWED_CATEGORIES.has(category) ||
-    typeof questionNumber !== "number" ||
-    typeof totalQuestions !== "number" ||
-    !Array.isArray(playerNames) ||
-    playerNames.length !== 2 ||
-    !playerNames.every((n) => typeof n === "string" && n.length > 0)
+    stage !== undefined && (typeof stage !== "number" || stage < 0 || stage > 2)
   ) {
     logLine({
       type: "question",
@@ -293,28 +278,19 @@ async function handlePostQuestion(ctx, event) {
       outcome: "forbidden",
       reason: "bad body",
       category: typeof category,
-      questionNumber: typeof questionNumber,
-      totalQuestions: typeof totalQuestions,
-      playerNames: Array.isArray(playerNames) ? playerNames.map((n) => typeof n === "string" ? n : typeof n) : typeof playerNames,
+      stage: typeof stage,
     });
     return buildResponse(403, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
   }
 
-  let stage = 0;
-  if (typeof relationshipStage === "number") {
-    stage = Math.max(0, Math.min(3, Math.floor(relationshipStage)));
-  } else if (keepItLight === false) {
-    stage = 2;
-  }
+  const stageNum = typeof stage === "number" ? stage : 0;
 
   let result;
   try {
     result = await question.generateQuestion({
       category,
-      questionNumber,
-      totalQuestions,
-      playerNames,
-      relationshipStage: stage,
+      stage: stageNum,
+      relationship: relationshipType,
       correlationId: ctx.correlationId,
     });
   } catch (err) {
@@ -329,7 +305,8 @@ async function handlePostQuestion(ctx, event) {
     ts: Date.now(),
     ip: ctx.ip,
     category,
-    questionNumber,
+    stage: stageNum,
+    relationship: relationshipType,
     latencyMs: result.latencyMs,
     geminiMs: result.geminiMs,
     outcome,
@@ -339,54 +316,9 @@ async function handlePostQuestion(ctx, event) {
 }
 
 async function handlePostVibe(ctx, event) {
-  const token = (event.headers?.["X-Session-Token"] || event.headers?.["x-session-token"] || "");
-  const tokenCheck = validateToken(token);
-  if (!tokenCheck.valid) {
-    const errorBody = { error: "forbidden", reason: tokenCheck.reason };
-    logLine({ type: "vibe", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "invalid_token", reason: tokenCheck.reason, correlationId: ctx.correlationId });
-    return buildResponse(403, JSON.stringify(errorBody), "application/json", ctx.origin);
-  }
-
-  if (SELF_ORIGIN && ctx.origin && ctx.origin !== SELF_ORIGIN) {
-    logLine({ type: "vibe", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "forbidden" });
-    return buildResponse(403, "Forbidden", "application/json", ctx.origin);
-  }
-
-  const rl = rateCheck(ctx.ip);
-  if (!rl.allowed) {
-    logLine({ type: "vibe", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "rate_limited" });
-    return buildResponse(429, JSON.stringify({ error: "rate_limited" }), "application/json", ctx.origin, { "Retry-After": "60" });
-  }
-
-  const parsed = parseJsonBody(event);
-  if (!parsed.ok) {
-    logLine({ type: "vibe", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: parsed.reason });
-    return buildResponse(parsed.status, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
-  }
-
-  const { answeredCount, categoryCounts, skips, playerNames } = parsed.body || {};
-  if (
-    typeof answeredCount !== "number" ||
-    typeof categoryCounts !== "object" ||
-    typeof skips !== "object" ||
-    !Array.isArray(playerNames) ||
-    playerNames.length !== 2
-  ) {
-    logLine({ type: "vibe", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, outcome: "forbidden", reason: "bad body" });
-    return buildResponse(403, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
-  }
-
-  let vibeResult;
-  try {
-    vibeResult = await question.generateVibe({ answeredCount, categoryCounts, skips, playerNames, correlationId: ctx.correlationId });
-  } catch (err) {
-    logError(err, ctx);
-    return buildResponse(500, JSON.stringify({ error: "internal_server_error" }), "application/json", ctx.origin);
-  }
-  const outcome = vibeResult.source === "fallback" ? "fallback" : "ok";
-  logLine({ type: "vibe", requestId: ctx.requestId, ts: Date.now(), ip: ctx.ip, latencyMs: vibeResult.latencyMs, outcome });
-
-  return buildResponse(200, JSON.stringify({ vibe: vibeResult.vibe }), "application/json", ctx.origin);
+  // Vibe generation removed — game no longer produces vibe summaries.
+  // Accept only minimal body; return friendly message.
+  return buildResponse(200, JSON.stringify({ vibe: "Play again to generate a new vibe!" }), "application/json", ctx.origin);
 }
 
 function handleOptions(ctx) {

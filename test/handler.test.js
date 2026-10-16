@@ -76,14 +76,12 @@ async function run(name, fn) {
     assert.equal(res.statusCode, 403);
   });
 
-  await run("POST /question accepts a valid request (legacy keepItLight: true)", async () => {
+  await run("POST /question accepts a valid request with relationship=dating (stage 0)", async () => {
     lastGenerateQuestionArgs = null;
     const res = await handler(event("POST", "/question", {
       category: "Chaos",
-      questionNumber: 1,
-      totalQuestions: 20,
-      playerNames: ["A", "B"],
-      keepItLight: true,
+      stage: 0,
+      relationship: "dating",
     }, { "x-session-token": token() }));
     assert.equal(res.statusCode, 200);
     const parsed = JSON.parse(res.body);
@@ -94,57 +92,48 @@ async function run(name, fn) {
       tip: "Keep it moving.",
     });
     assert.ok(lastGenerateQuestionArgs);
-    assert.equal(lastGenerateQuestionArgs.relationshipStage, 0);
+    assert.equal(lastGenerateQuestionArgs.category, "Chaos");
+    assert.equal(lastGenerateQuestionArgs.stage, 0);
+    assert.equal(lastGenerateQuestionArgs.relationship, "dating");
   });
 
-  await run("POST /question accepts a valid request (legacy keepItLight: false)", async () => {
+  await run("POST /question accepts a valid request with relationship=friendship (stage 2)", async () => {
     lastGenerateQuestionArgs = null;
     const res = await handler(event("POST", "/question", {
-      category: "Chaos",
-      questionNumber: 1,
-      totalQuestions: 20,
-      playerNames: ["A", "B"],
-      keepItLight: false,
+      category: "Deep End",
+      stage: 2,
+      relationship: "friendship",
     }, { "x-session-token": token() }));
     assert.equal(res.statusCode, 200);
     assert.ok(lastGenerateQuestionArgs);
-    assert.equal(lastGenerateQuestionArgs.relationshipStage, 2);
+    assert.equal(lastGenerateQuestionArgs.category, "Deep End");
+    assert.equal(lastGenerateQuestionArgs.stage, 2);
+    assert.equal(lastGenerateQuestionArgs.relationship, "friendship");
   });
 
-  await run("POST /question accepts a valid request (relationshipStage: 3)", async () => {
+  await run("POST /question defaults relationship to dating when omitted", async () => {
     lastGenerateQuestionArgs = null;
     const res = await handler(event("POST", "/question", {
-      category: "Chaos",
-      questionNumber: 1,
-      totalQuestions: 20,
-      playerNames: ["A", "B"],
-      relationshipStage: 3,
+      category: "Story Time",
+      stage: 1,
     }, { "x-session-token": token() }));
     assert.equal(res.statusCode, 200);
     assert.ok(lastGenerateQuestionArgs);
-    assert.equal(lastGenerateQuestionArgs.relationshipStage, 3);
+    assert.equal(lastGenerateQuestionArgs.relationship, "dating");
   });
 
-  await run("POST /question handles relationshipStage clamping", async () => {
+  await run("POST /question accepts a valid request with relationship=groups (stage 1)", async () => {
     lastGenerateQuestionArgs = null;
-    await handler(event("POST", "/question", {
-      category: "Chaos",
-      questionNumber: 1,
-      totalQuestions: 20,
-      playerNames: ["A", "B"],
-      relationshipStage: 10,
+    const res = await handler(event("POST", "/question", {
+      category: "Future",
+      stage: 1,
+      relationship: "groups",
     }, { "x-session-token": token() }));
-    assert.equal(lastGenerateQuestionArgs.relationshipStage, 3);
-
-    lastGenerateQuestionArgs = null;
-    await handler(event("POST", "/question", {
-      category: "Chaos",
-      questionNumber: 1,
-      totalQuestions: 20,
-      playerNames: ["A", "B"],
-      relationshipStage: -5,
-    }, { "x-session-token": token() }));
-    assert.equal(lastGenerateQuestionArgs.relationshipStage, 0);
+    assert.equal(res.statusCode, 200);
+    assert.ok(lastGenerateQuestionArgs);
+    assert.equal(lastGenerateQuestionArgs.category, "Future");
+    assert.equal(lastGenerateQuestionArgs.stage, 1);
+    assert.equal(lastGenerateQuestionArgs.relationship, "groups");
   });
 
   await run("POST /vibe accepts a valid request", async () => {

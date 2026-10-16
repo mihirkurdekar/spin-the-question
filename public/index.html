@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0F0F0F">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self'; script-src 'self' 'unsafe-inline';">
   <title>Spin the Question</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
   <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -70,7 +71,7 @@
       font-weight: 400;
       margin: 0;
     }
-    h1 { font-size: clamp(48px, 14vw, 74px); line-height: 0.92; }
+    h1 { font-size: clamp(48px, 14vw, 74px); line-height: 0.92; margin-bottom: 8px; }
     h2 { font-size: 38px; line-height: 1; }
     p { margin: 0; color: var(--muted); line-height: 1.45; }
     .tagline { max-width: 25rem; font-size: 18px; }
@@ -261,43 +262,6 @@
     .dots { display: flex; gap: 6px; }
     .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--muted); }
     .dot.used { background: var(--accent); border-color: var(--accent); }
-    .handoff { text-align: center; align-items: center; justify-content: center; gap: 22px; }
-    .stats { display: grid; gap: 10px; }
-    .stat-row { display: grid; grid-template-columns: 96px 1fr 34px; align-items: center; gap: 10px; }
-    .bar { height: 10px; background: #242424; border-radius: 999px; overflow: hidden; }
-    .bar span { display: block; height: 100%; background: var(--accent); }
-    .sheet-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.62);
-      display: none;
-      align-items: flex-end;
-      padding: 18px;
-      z-index: 10;
-    }
-    .sheet-backdrop.open { display: flex; }
-    .sheet {
-      width: min(100%, 560px);
-      margin: 0 auto;
-      background: #181818;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 12px;
-      display: grid;
-      gap: 8px;
-    }
-    .modal-text { padding: 8px 4px 4px; }
-    .live {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
     .banner {
       min-height: 42px;
       display: none;
@@ -310,6 +274,96 @@
       font-weight: 800;
     }
     .banner.show { display: flex; }
+
+    .progress-bar {
+      position: relative;
+      width: 100%;
+      height: 40px;
+      background: var(--line);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .progress-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+      z-index: 2;
+    }
+    .progress-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: var(--accent);
+      transition: width 300ms ease;
+    }
+
+    .progress-bar-spin {
+      position: relative;
+      width: 100%;
+      height: 40px;
+      background: var(--line);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .progress-text-spin {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+      z-index: 2;
+    }
+    .progress-fill-spin {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: var(--accent);
+      transition: width 300ms ease;
+    }
+
+    .menu-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 100;
+    }
+    .menu-modal.show { display: flex; }
+    .menu-content {
+      width: 100%;
+      max-width: 560px;
+      background: var(--panel);
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border: 1px solid var(--line);
+    }
+    .menu-header {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
     .footer {
       margin-top: auto;
       padding-top: 24px;
@@ -332,35 +386,53 @@
   <script>window.__SESSION_TOKEN__ = "__SESSION_TOKEN_PLACEHOLDER__";</script>
   <div class="app">
     <div class="topbar">
-      <button id="menuBtn" class="icon-btn" aria-label="Menu" title="Menu" hidden>☰</button>
+      <button id="menuBtn" class="icon-btn" aria-label="Menu" title="Menu">☰</button>
     </div>
 
     <main id="home" class="screen stack active">
       <div>
         <h1>Spin the Question</h1>
-        <p class="tagline">A game for two people getting to know each other</p>
+        <p class="tagline">A game for anyone to get to know each other</p>
+        <p class="tip" style="max-width: 28rem; text-align: left;">All players talk about the questions generated. Spin, answer, repeat.</p>
       </div>
       <div class="field-grid">
-        <label>Your name <input id="nameA" maxlength="36" autocomplete="given-name"></label>
-        <label>Their name <input id="nameB" maxlength="36" autocomplete="given-name"></label>
-        <div class="slider-field">
-          <div class="slider-label-header">
-            <span>Connection Stage</span>
-            <span id="stageText" class="stage-text-badge">First Date</span>
+        <fieldset>
+          <legend style="display: block; margin-bottom: 12px; font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Relationship Type</legend>
+          <div style="display: grid; gap: 12px;">
+            <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+              <input type="radio" name="relationshipType" value="dating" id="relDating" style="width: 22px; height: 22px; accent-color: var(--accent);">
+              <span style="font-size: 16px; font-weight: 500;">Dating</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+              <input type="radio" name="relationshipType" value="friendship" id="relFriendship" style="width: 22px; height: 22px; accent-color: var(--accent);">
+              <span style="font-size: 16px; font-weight: 500;">Friendship</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+              <input type="radio" name="relationshipType" value="professional" id="relProfessional" style="width: 22px; height: 22px; accent-color: var(--accent);">
+              <span style="font-size: 16px; font-weight: 500;">Professional</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+              <input type="radio" name="relationshipType" value="groups" id="relGroups" style="width: 22px; height: 22px; accent-color: var(--accent);">
+              <span style="font-size: 16px; font-weight: 500;">Groups</span>
+            </label>
           </div>
-          <div class="slider-container">
-            <input type="range" id="stageSlider" min="0" max="3" value="0" step="1" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0" aria-valuetext="First Date">
-            <div class="slider-ticks">
-              <span class="tick active" data-val="0"></span>
-              <span class="tick" data-val="1"></span>
-              <span class="tick" data-val="2"></span>
-              <span class="tick" data-val="3"></span>
-            </div>
+        </fieldset>
+      </div>
+      <div class="slider-field">
+        <div class="slider-label-header">
+          <span>Conversation Depth</span>
+          <span id="stageText" class="stage-text-badge">Light</span>
+        </div>
+        <div class="slider-container">
+          <input type="range" id="stageSlider" min="0" max="2" value="0" step="1" aria-valuemin="0" aria-valuemax="2" aria-valuenow="0" aria-valuetext="Light">
+          <div class="slider-ticks">
+            <span class="tick active" data-val="0"></span>
+            <span class="tick" data-val="1"></span>
+            <span class="tick" data-val="2"></span>
           </div>
-          <p id="stageDesc" class="stage-desc">Light icebreakers & fun banter to get started.</p>
         </div>
       </div>
-      <div id="warmPill" class="warm-pill" hidden>Warming up...</div>
+      <p id="stageDesc" class="stage-desc">Safe, fun, playful questions for anyone</p>
       <button id="startBtn" class="primary">Let's play →</button>
       <footer class="footer">
         Created by <a href="https://github.com/mihirkurdekar/spin-the-question" target="_blank" rel="noopener noreferrer">Mihir K</a>
@@ -368,10 +440,12 @@
     </main>
 
     <main id="spin" class="screen stack">
-      <div id="unlockBanner" class="banner">Wildcard unlocked</div>
       <div class="spin-head">
-        <div class="turn" id="turnLabel"></div>
         <h2>Spin</h2>
+      </div>
+      <div class="progress-bar-spin">
+        <span class="progress-text-spin">Question 1 of 10</span>
+        <div class="progress-fill-spin" style="width: 0%"></div>
       </div>
       <div class="wheel-wrap">
         <div class="pointer"></div>
@@ -381,48 +455,33 @@
     </main>
 
     <main id="question" class="screen stack">
+      <div class="progress-bar">
+        <span class="progress-text">Question 1 of 10</span>
+        <div class="progress-fill" style="width: 0%"></div>
+      </div>
       <span id="categoryBadge" class="badge"></span>
       <div id="questionText" class="question-text">Getting your question...</div>
       <p id="tipText" class="tip"></p>
-      <div class="veto-row">
-        <span id="vetoLabel"></span>
-        <span id="vetoDots" class="dots"></span>
-      </div>
-      <div class="actions">
-        <button id="doneBtn" class="primary">Done talking</button>
-        <button id="skipBtn" class="secondary">Skip</button>
-      </div>
-    </main>
-
-    <main id="handoff" class="screen handoff">
-      <h2 id="handoffText"></h2>
-      <button id="readyBtn" class="primary">Ready →</button>
+      <button id="spinAgainBtn" class="primary">Spin Again</button>
     </main>
 
     <main id="end" class="screen stack">
       <div>
-        <h2>That’s the game</h2>
+        <h2>Game Complete</h2>
         <p id="endCount"></p>
       </div>
-      <div id="categoryStats" class="stats"></div>
-      <p id="skipStats"></p>
-      <p id="vibeText" class="tip">Getting your vibe...</p>
-      <div class="actions">
-        <button id="shareBtn" class="secondary">Share</button>
-        <button id="againBtn" class="primary">Play again</button>
-      </div>
+      <button id="againBtn" class="primary">Play Again</button>
     </main>
   </div>
 
-  <div id="sheetBackdrop" class="sheet-backdrop" aria-hidden="true">
-    <div class="sheet" role="dialog" aria-modal="true" aria-label="Menu">
-      <button id="endGameBtn" class="danger">End game</button>
-      <button id="howBtn" class="secondary">How to play</button>
-      <p id="howText" class="modal-text" hidden>Take turns spinning, answer what lands, and use skips when a prompt is not your thing.</p>
+  <div id="menuModal" class="menu-modal">
+    <div class="menu-content">
+      <button id="endGameBtn" class="primary danger">End game</button>
     </div>
   </div>
+
   <div id="liveRegion" class="live" aria-live="assertive"></div>
-  <script src="/wildcards.js"></script>
+
   <script>
     const CATEGORIES = [
       { name: "Spicy", color: "#D85A30", icon: "🌶️" },
@@ -432,122 +491,116 @@
       { name: "Future", color: "#534AB7", icon: "🔮" },
       { name: "Fast Fire", color: "#993556", icon: "⚡" },
     ];
-    const WILDCARD = { name: "Your call", color: "#E0E0E0", icon: "🃏" };
-    const TOTAL_QUESTIONS = 20;
-    const STORE_KEY = "spin-state-v1";
-    const token = window.__SESSION_TOKEN__;
+    const TOTAL_QUESTIONS = 10;
     const $ = (id) => document.getElementById(id);
-    let state = loadState();
+    let state = { stage: 0, questionNumber: 1, relationship: "dating" };
     let selectedCategory = null;
     let wheelRotation = 0;
     let spinning = false;
 
-    function blankState(players = ["You", "Them"], relationshipStage = 0) {
-      return {
-        players,
-        currentPlayerIndex: 0,
-        questionNumber: 1,
-        vetoTokens: { [players[0]]: 2, [players[1]]: 2 },
-        skips: { [players[0]]: 0, [players[1]]: 0 },
-        categoryCounts: {},
-        answeredCount: 0,
-        noSkipStreak: 0,
-        wildcardReady: false,
-        wildcardUnlockedNotice: false,
-        relationshipStage,
-        prefetch: {},
-        sessionToken: token,
-      };
+    const STAGE_DETAILS = [
+      { label: "Light", desc: "Safe, fun, playful questions for anyone" },
+      { label: "Medium", desc: "Slightly more personal, lifestyle preferences" },
+      { label: "Deep", desc: "Thoughtful questions about values, fears, life goals" }
+    ];
+
+    const RELATIONSHIP_DETAILS = {
+      dating: "Romantic connection — getting to know each other, future compatibility",
+      friendship: "Building platonic connections — shared interests, personality compatibility",
+      professional: "Career-focused — networking, collaboration, professional growth",
+      groups: "Group settings — team dynamics, collaboration, shared experiences"
+    };
+
+    function updateSlider(val) {
+      const stage = STAGE_DETAILS[val] || STAGE_DETAILS[0];
+      $("stageText").textContent = stage.label;
+      $("stageDesc").textContent = stage.desc + " | " + RELATIONSHIP_DETAILS[state.relationship];
+
+      const ticks = document.querySelectorAll(".slider-ticks .tick");
+      ticks.forEach((tick, idx) => {
+        tick.classList.toggle("active", idx <= val);
+      });
+      $("stageSlider").setAttribute("aria-valuenow", val);
+      $("stageSlider").setAttribute("aria-valuetext", stage.label);
     }
 
-    function loadState() {
-      try {
-        const parsed = JSON.parse(sessionStorage.getItem(STORE_KEY));
-        if (parsed && Array.isArray(parsed.players) && parsed.players.length === 2) {
-          parsed.sessionToken = token;
-          if (typeof parsed.relationshipStage !== "number") {
-            parsed.relationshipStage = parsed.keepItLight === false ? 2 : 0;
-            delete parsed.keepItLight;
-          }
-          return parsed;
-        }
-      } catch (_) {}
-      return blankState();
-    }
+    function updateProgressDisplay() {
+      const percentage = ((state.questionNumber - 1) / TOTAL_QUESTIONS) * 100;
+      const textContent = `Question ${state.questionNumber} of ${TOTAL_QUESTIONS}`;
 
-    function saveState() {
-      sessionStorage.setItem(STORE_KEY, JSON.stringify(state));
+      // Update progress bar on question screen
+      const qFill = document.querySelector(".progress-bar .progress-fill");
+      const qText = document.querySelector(".progress-bar .progress-text");
+      if (qFill) qFill.style.width = percentage + "%";
+      if (qText) qText.textContent = textContent;
+
+      // Update progress bar on spin screen
+      const sFill = document.querySelector(".progress-bar-spin .progress-fill-spin");
+      const sText = document.querySelector(".progress-bar-spin .progress-text-spin");
+      if (sFill) sFill.style.width = percentage + "%";
+      if (sText) sText.textContent = textContent;
     }
 
     function show(id) {
       document.querySelectorAll(".screen").forEach((screen) => screen.classList.remove("active"));
       $(id).classList.add("active");
-      $("menuBtn").hidden = id === "home" || id === "handoff";
       if (id === "spin") {
-        $("unlockBanner").classList.toggle("show", state.wildcardUnlockedNotice);
-        if (state.wildcardUnlockedNotice) {
-          setTimeout(() => {
-            state.wildcardUnlockedNotice = false;
-            saveState();
-            $("unlockBanner").classList.remove("show");
-          }, 2000);
-        }
         drawWheel();
       }
-    }
-
-    function shortName(name) {
-      return name.length > 12 ? `${name.slice(0, 11)}…` : name;
+      updateProgressDisplay();
     }
 
     function setAccent(category) {
       const color = category?.color || "#D85A30";
       document.documentElement.style.setProperty("--accent", color);
-      document.documentElement.style.setProperty("--accent-ink", category?.name === "Your call" ? "#0f0f0f" : "#ffffff");
+      document.documentElement.style.setProperty("--accent-ink", "#ffffff");
     }
 
-    function currentPlayer() {
-      return state.players[state.currentPlayerIndex];
-    }
-
-    function nextPlayer() {
-      return state.players[(state.currentPlayerIndex + 1) % 2];
-    }
-
-    function categoriesForWheel() {
-      return state.wildcardReady ? [...CATEGORIES, WILDCARD] : CATEGORIES;
-    }
-
-    function weightsFor(questionNumber, totalQuestions, includeWildcard = false) {
-      const phase = questionNumber <= 5 ? "open" : questionNumber >= totalQuestions - 5 ? "close" : "middle";
-      const weights = {
-        "Chaos": phase === "open" ? 1.5 : phase === "close" ? 0.5 : 1,
-        "Fast Fire": phase === "open" ? 1.5 : phase === "close" ? 0.5 : 1,
-        "Spicy": 1,
-        "Story Time": 1,
-        "Future": phase === "open" ? 0.5 : phase === "close" ? 1.5 : 1,
-        "Deep End": phase === "open" ? 0.5 : phase === "close" ? 1.5 : 1,
-      };
-      if (includeWildcard) weights["Your call"] = 0.2;
-      return weights;
-    }
-
-    function pickWeighted(includeWildcard = state.wildcardReady) {
-      const list = categoriesForWheel();
-      const weights = weightsFor(state.questionNumber, TOTAL_QUESTIONS, includeWildcard);
-      const total = list.reduce((sum, cat) => sum + (weights[cat.name] || 1), 0);
-      let roll = Math.random() * total;
-      for (const cat of list) {
-        roll -= weights[cat.name] || 1;
-        if (roll <= 0) return cat;
+    async function apiPost(path, body) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(`Request failed: ${res.status}`);
       }
-      return list[list.length - 1];
+      return json;
+    }
+
+    async function getQuestion(category, stage) {
+      return apiPost("/question", {
+        category: category.name,
+        stage: stage,
+        relationship: state.relationship
+      });
+    }
+
+    async function showQuestion(category) {
+      selectedCategory = category;
+      setAccent(category);
+      $("categoryBadge").textContent = `${category.icon} ${category.name}`;
+      $("questionText").textContent = "Getting your question...";
+      $("tipText").textContent = "";
+      show("question");
+      updateProgressDisplay();
+      try {
+        const data = await getQuestion(category, state.stage);
+        $("questionText").textContent = data.question;
+        $("tipText").textContent = data.tip || "";
+      } catch (_) {
+        $("questionText").textContent = "What is one thing you want to ask right now?";
+        $("tipText").textContent = "Fallback mode. Keep it generous.";
+      }
     }
 
     function drawWheel(rotation = wheelRotation) {
       const canvas = $("wheel");
       const ctx = canvas.getContext("2d");
-      const cats = categoriesForWheel();
+      const cats = CATEGORIES;
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
       const r = canvas.width * 0.45;
@@ -567,7 +620,7 @@
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate((start + end) / 2);
-        ctx.fillStyle = cat.name === "Your call" ? "#0f0f0f" : "#fff8ec";
+        ctx.fillStyle = "#fff8ec";
         ctx.font = "88px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -583,179 +636,13 @@
       ctx.stroke();
     }
 
-    function setSpinScreen() {
-      $("turnLabel").textContent = `${shortName(currentPlayer())}'s spin`;
-      setAccent(null);
-      show("spin");
-    }
-
-    function showSessionExpired() {
-      // Close any open menus first
-      $("sheetBackdrop").classList.remove("open");
-      $("sheetBackdrop").setAttribute("aria-hidden", "true");
-      
-      // Show alert
-      alert("Your session expired. Please refresh the page and restart the game.");
-    }
-
-    async function apiPost(path, body) {
-      const res = await fetch(path, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Session-Token": state.sessionToken,
-        },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        // Check if session expired
-        if (json.reason === "expired") {
-          showSessionExpired();
-          throw new Error("Session expired");
-        }
-        throw new Error(`Request failed: ${res.status}`);
-      }
-      return json;
-    }
-
-    async function getQuestion(category) {
-      if (category.name === "Your call") {
-        const list = window.SPIN_WILDCARDS || ["Ask anything you want."];
-        return { question: list[Math.floor(Math.random() * list.length)], tip: "Your call. Be kind." };
-      }
-      const key = `${category.name}:${state.questionNumber}`;
-      if (state.prefetch[key]) {
-        const cached = state.prefetch[key];
-        delete state.prefetch[key];
-        saveState();
-        return cached;
-      }
-      return apiPost("/question", {
-        category: category.name,
-        questionNumber: state.questionNumber,
-        totalQuestions: TOTAL_QUESTIONS,
-        playerNames: state.players,
-        relationshipStage: state.relationshipStage,
-      });
-    }
-
-    function prefetchNext() {
-      if (state.questionNumber >= TOTAL_QUESTIONS) return;
-      const predicted = pickWeighted(false);
-      const key = `${predicted.name}:${state.questionNumber + 1}`;
-      if (state.prefetch[key]) return;
-      apiPost("/question", {
-        category: predicted.name,
-        questionNumber: state.questionNumber + 1,
-        totalQuestions: TOTAL_QUESTIONS,
-        playerNames: state.players,
-        relationshipStage: state.relationshipStage,
-      }).then((data) => {
-        state.prefetch[key] = data;
-        const keys = Object.keys(state.prefetch);
-        while (keys.length > 3) delete state.prefetch[keys.shift()];
-        saveState();
-      }).catch(() => {});
-    }
-
-    async function showQuestion(category) {
-      selectedCategory = category;
-      setAccent(category);
-      $("categoryBadge").textContent = `${category.icon} ${category.name}`;
-      $("questionText").textContent = "Getting your question...";
-      $("tipText").textContent = "";
-      renderVeto();
-      show("question");
-      try {
-        const data = await getQuestion(category);
-        $("questionText").textContent = data.question;
-        $("tipText").textContent = data.tip || "";
-        prefetchNext();
-      } catch (_) {
-        $("questionText").textContent = "What is one thing you want to ask right now?";
-        $("tipText").textContent = "Fallback mode. Keep it generous.";
-      }
-    }
-
-    function renderVeto() {
-      const player = currentPlayer();
-      const remaining = state.vetoTokens[player] ?? 0;
-      $("vetoLabel").textContent = `${shortName(player)} skips`;
-      $("vetoDots").innerHTML = "";
-      for (let i = 0; i < 2; i++) {
-        const dot = document.createElement("span");
-        dot.className = `dot${i >= remaining ? " used" : ""}`;
-        $("vetoDots").appendChild(dot);
-      }
-      $("skipBtn").disabled = remaining <= 0;
-    }
-
-    function completeQuestion(skipped) {
-      const player = currentPlayer();
-      if (skipped) {
-        state.vetoTokens[player] = Math.max(0, (state.vetoTokens[player] ?? 0) - 1);
-        state.skips[player] = (state.skips[player] || 0) + 1;
-        state.noSkipStreak = 0;
-      } else {
-        state.answeredCount += 1;
-        state.noSkipStreak += 1;
-        state.categoryCounts[selectedCategory.name] = (state.categoryCounts[selectedCategory.name] || 0) + 1;
-        if (state.noSkipStreak >= 5 && !state.wildcardReady) {
-          state.wildcardReady = true;
-          state.wildcardUnlockedNotice = true;
-        }
-      }
-      if (selectedCategory?.name === "Your call") {
-        state.wildcardReady = false;
-        state.noSkipStreak = 0;
-      }
-      if (!skipped) state.questionNumber += 1;
-      state.currentPlayerIndex = (state.currentPlayerIndex + 1) % 2;
-      saveState();
-      if (state.answeredCount >= TOTAL_QUESTIONS) {
-        showEnd();
-      } else {
-        $("handoffText").textContent = `Pass to ${shortName(currentPlayer())}`;
-        show("handoff");
-      }
-    }
-
-    function showEnd() {
-      setAccent(null);
-      $("endCount").textContent = `${state.answeredCount} questions answered`;
-      const entries = Object.entries(state.categoryCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
-      const max = Math.max(1, ...entries.map(([, n]) => n));
-      $("categoryStats").innerHTML = entries.length ? "" : "<p>No categories yet.</p>";
-      for (const [name, count] of entries) {
-        const row = document.createElement("div");
-        row.className = "stat-row";
-        row.innerHTML = `<strong>${name}</strong><span class="bar"><span style="width:${Math.round(count / max * 100)}%"></span></span><span>${count}</span>`;
-        $("categoryStats").appendChild(row);
-      }
-      $("skipStats").textContent = `Skips used: ${state.players.map((p) => `${p} ${state.skips[p] || 0}`).join(" · ")}`;
-      $("vibeText").textContent = "Getting your vibe...";
-      show("end");
-      apiPost("/vibe", {
-        answeredCount: state.answeredCount,
-        categoryCounts: state.categoryCounts,
-        skips: state.skips,
-        playerNames: state.players,
-      }).then((data) => {
-        $("vibeText").textContent = data.vibe;
-      }).catch(() => {
-        $("vibeText").textContent = `${state.players[0]} & ${state.players[1]} made it through ${state.answeredCount} questions with style.`;
-      });
-    }
-
     function spin() {
       if (spinning) return;
       spinning = true;
       $("spinBtn").disabled = true;
-      const cats = categoriesForWheel();
-      const category = pickWeighted();
-      const index = cats.findIndex((cat) => cat.name === category.name);
-      const segment = Math.PI * 2 / cats.length;
+      const category = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
+      const index = CATEGORIES.findIndex((cat) => cat.name === category.name);
+      const segment = Math.PI * 2 / CATEGORIES.length;
       const targetAtPointer = index * segment + segment / 2;
       const extra = Math.PI * 2 * (4 + Math.floor(Math.random() * 3));
       const start = wheelRotation;
@@ -775,111 +662,86 @@
           spinning = false;
           $("spinBtn").disabled = false;
           $("liveRegion").textContent = `${category.name}. Question incoming.`;
-          if (category.name === "Your call") state.wildcardReady = false;
-          saveState();
           showQuestion(category);
         }
       }
       requestAnimationFrame(frame);
     }
 
+    function getSelectedRelationship() {
+      const selected = document.querySelector('input[name="relationshipType"]:checked');
+      return selected ? selected.value : 'dating'; // default to dating
+    }
+
     function startGame() {
-      const a = $("nameA").value.trim() || "You";
-      const b = $("nameB").value.trim() || "Them";
-      state = blankState([a, b], parseInt($("stageSlider").value));
-      saveState();
-      setSpinScreen();
+      state = {
+        stage: parseInt($("stageSlider").value),
+        questionNumber: 1,
+        relationship: getSelectedRelationship()
+      };
+      show("spin");
     }
 
     function playAgain() {
-      state = blankState(state.players, state.relationshipStage);
-      saveState();
-      setSpinScreen();
+      state = {
+        stage: parseInt($("stageSlider").value),
+        questionNumber: 1,
+        relationship: state.relationship
+      };
+      show("spin");
     }
 
-    function shareSummary() {
-      const text = `Spin the Question: ${state.players.join(" & ")} answered ${state.answeredCount} questions. ${$("vibeText").textContent}`;
-      if (navigator.share) {
-        navigator.share({ text }).catch(() => {});
-      } else if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).then(() => {
-          $("shareBtn").textContent = "Copied";
-          setTimeout(() => $("shareBtn").textContent = "Share", 1200);
-        });
+    function nextQuestion() {
+      state.questionNumber += 1;
+      if (state.questionNumber > TOTAL_QUESTIONS) {
+        $("endCount").textContent = `${TOTAL_QUESTIONS} questions answered — great job!`;
+        show("end");
+      } else {
+        show("spin");
       }
-    }
-
-    function warmup() {
-      let shown = false;
-      const timer = setTimeout(() => {
-        shown = true;
-        $("warmPill").hidden = false;
-      }, 1000);
-      fetch("/?warmup=1", { cache: "no-store" }).catch(() => {}).finally(() => {
-        clearTimeout(timer);
-        if (shown) $("warmPill").hidden = true;
-      });
-    }
-
-    const STAGE_DETAILS = [
-      { label: "First Date", desc: "Light icebreakers & fun banter to get started. Keeps the conversation safe and playful." },
-      { label: "Dating", desc: "Playful stories & getting-to-know-you topics. Explores personal preferences and fun memories." },
-      { label: "Committed", desc: "Deeper alignment, life goals & values. Direct questions exploring trust and relationship dynamics." },
-      { label: "Married / Long-Term", desc: "Intimate reflections, deep vulnerability & shared life. Perfect for long-term partners." }
-    ];
-
-    function updateSlider(val) {
-      const stage = STAGE_DETAILS[val] || STAGE_DETAILS[0];
-      $("stageText").textContent = stage.label;
-      $("stageDesc").textContent = stage.desc;
-      
-      const ticks = document.querySelectorAll(".slider-ticks .tick");
-      ticks.forEach((tick, idx) => {
-        tick.classList.toggle("active", idx <= val);
-      });
-      $("stageSlider").setAttribute("aria-valuenow", val);
-      $("stageSlider").setAttribute("aria-valuetext", stage.label);
-    }
-
-    $("stageSlider").addEventListener("input", (e) => {
-      updateSlider(parseInt(e.target.value));
-    });
-
-    function initSlider() {
-      if (state && typeof state.relationshipStage === "number") {
-        $("stageSlider").value = state.relationshipStage;
-      }
-      updateSlider(parseInt($("stageSlider").value));
     }
 
     $("startBtn").addEventListener("click", startGame);
     $("spinBtn").addEventListener("click", spin);
-    $("doneBtn").addEventListener("click", () => completeQuestion(false));
-    $("skipBtn").addEventListener("click", () => completeQuestion(true));
-    $("readyBtn").addEventListener("click", setSpinScreen);
+    $("spinAgainBtn").addEventListener("click", nextQuestion);
     $("againBtn").addEventListener("click", playAgain);
-    $("shareBtn").addEventListener("click", shareSummary);
-    $("menuBtn").addEventListener("click", () => {
-      $("sheetBackdrop").classList.add("open");
-      $("sheetBackdrop").setAttribute("aria-hidden", "false");
-    });
-    $("sheetBackdrop").addEventListener("click", (e) => {
-      if (e.target === $("sheetBackdrop")) {
-        $("sheetBackdrop").classList.remove("open");
-        $("sheetBackdrop").setAttribute("aria-hidden", "true");
-        $("howText").hidden = true;
-      }
-    });
-    $("howBtn").addEventListener("click", () => $("howText").hidden = !$("howText").hidden);
-    $("endGameBtn").addEventListener("click", () => {
-      $("sheetBackdrop").classList.remove("open");
-      showEnd();
+    $("stageSlider").addEventListener("input", (e) => {
+      updateSlider(parseInt(e.target.value));
     });
 
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
-    warmup();
+    // Set default selected relationship (Groups) and listen for changes
+    document.getElementById("relGroups").checked = true;
+    state.relationship = getSelectedRelationship();
+
+    document.querySelectorAll('input[name="relationshipType"]').forEach((radio) => {
+      radio.addEventListener("change", (e) => {
+        state.relationship = e.target.value;
+        updateSlider(parseInt($("stageSlider").value));
+      });
+    });
+
+    // Menu button event listener
+    $("menuBtn").addEventListener("click", () => {
+      $("menuModal").classList.add("show");
+    });
+
+    // End game button event listener
+    $("endGameBtn").addEventListener("click", () => {
+      $("menuModal").classList.remove("show");
+      // Jump to end screen
+      $("endCount").textContent = `${state.questionNumber - 1} questions answered — game ended!`;
+      show("end");
+    });
+
+    // Close menu when clicking outside (clicking the overlay)
+    $("menuModal").addEventListener("click", (e) => {
+      if (e.target === $("menuModal")) {
+        $("menuModal").classList.remove("show");
+      }
+    });
+
+    updateSlider(0);
     drawWheel();
-    initSlider();
   </script>
 </body>
 </html>
