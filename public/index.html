@@ -480,6 +480,19 @@
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
+
+    /* sr-only for visually hiding elements while keeping them accessible */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
   </style>
 </head>
 <body>
@@ -601,7 +614,7 @@
     </div>
   </div>
 
-  <div id="liveRegion" class="live" aria-live="assertive"></div>
+  <div id="liveRegion" class="live sr-only" aria-live="assertive"></div>
 
   <script>
     const CATEGORIES = [
@@ -715,9 +728,12 @@
         $("questionText").textContent = data.question;
         $("tipText").textContent = data.tip || "";
         state.askedQuestions.push(data.question);
+        // Clear the live region once the question has loaded to prevent "sticky" loading text
+        $("liveRegion").textContent = "";
       } catch (_) {
         $("questionText").textContent = "What is one thing you want to ask right now?";
         $("tipText").textContent = "Fallback mode. Keep it generous.";
+        $("liveRegion").textContent = "";
       }
     }
 
