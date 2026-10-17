@@ -26,7 +26,7 @@ let CURRENT_CORRELATION_ID = null;
 // Lambda Function URL like "https://abc.lambda-url.us-east-1.on.aws".
 const SELF_ORIGIN = process.env.SELF_ORIGIN || "";
 
-const MAX_BODY_BYTES = 1024;        // 1 KB hard cap per request body
+const MAX_BODY_BYTES = 1024 * 10;        // Increased to 10 KB to accommodate askedQuestions history
 const TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 const ALLOWED_CATEGORIES = new Set([
   "Spicy", "Deep End", "Chaos", "Story Time", "Future", "Fast Fire",
@@ -262,8 +262,9 @@ async function handlePostQuestion(ctx, event) {
     return buildResponse(parsed.status, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
   }
 
-  const { category, stage, relationship } = parsed.body || {};
-  const relationshipType = typeof relationship === "string" ? relationship : "dating"; // default to dating
+  const { category, stage, relationship, personality, askedQuestions } = parsed.body || {};
+  const relationshipType = typeof relationship === "string" ? relationship : "dating";
+  const personalityType = typeof personality === "string" ? personality : "neutral";
 
   if (
     typeof category !== "string" ||
@@ -291,6 +292,8 @@ async function handlePostQuestion(ctx, event) {
       category,
       stage: stageNum,
       relationship: relationshipType,
+      personality: personalityType,
+      askedQuestions: Array.isArray(askedQuestions) ? askedQuestions : [],
       correlationId: ctx.correlationId,
     });
   } catch (err) {
@@ -316,9 +319,36 @@ async function handlePostQuestion(ctx, event) {
 }
 
 async function handlePostVibe(ctx, event) {
-  // Vibe generation removed — game no longer produces vibe summaries.
-  // Accept only minimal body; return friendly message.
-  return buildResponse(200, JSON.stringify({ vibe: "Play again to generate a new vibe!" }), "application/json", ctx.origin);
+  const parsed = parseJsonBody(event);
+  if (!parsed.ok) {
+    return buildResponse(parsed.status, JSON.stringify({ error: "forbidden" }), "application/json", ctx.origin);
+  }
+
+  const { relationship, personality, askedQuestions } = parsed.body || {};
+  
+  let result;
+  try {
+    result = await question.generatePortrait({
+      relationship: typeof relationship === "string" ? relationship : "dating",
+      personality: typeof personality === "string" ? personality : "neutral",
+      askedQuestions: Array.isArray(askedQuestions) ? askedQuestions : [],
+      correlationId: ctx.correlationId,
+    });
+  } catch (err) {
+    logError(err, ctx);
+    return buildResponse(500, JSON.stringify({ error: "internal_server_error" }), "application/json", ctx.origin);
+  }
+
+  logLine({
+    type: "portrait",
+    requestId: ctx.requestId,
+    ts: Date.now(),
+    ip: ctx.ip,
+    latencyMs: result.latencyMs,
+    outcome: result.source === "fallback" ? "fallback" : "ok",
+  });
+
+  return buildResponse(200, JSON.stringify({ vibe: result.vibe }), "application/json", ctx.origin);
 }
 
 function handleOptions(ctx) {

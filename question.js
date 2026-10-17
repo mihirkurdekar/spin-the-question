@@ -5,7 +5,6 @@ const fallbacks = require("./fallbacks.js");
 
 let cachedClient = null;
 let modelIndex = 0;
-let exhaustedModelIndex = null;
 
 function getClient() {
   if (!cachedClient) {
@@ -22,30 +21,14 @@ function getModelList() {
   return envList.split(",").map((m) => m.trim()).filter(Boolean);
 }
 
-function getModelName() {
+function getNextModelName() {
   const models = getModelList();
   if (!models.length) return "gemini-2.5-flash";
-  // Skip exhausted model if there's an alternative
-  if (exhaustedModelIndex !== null && exhaustedModelIndex < models.length) {
-    const fallbackIndex = (exhaustedModelIndex + 1) % models.length;
-    if (fallbackIndex !== exhaustedModelIndex) {
-      modelIndex = fallbackIndex;
-    }
-  }
-  if (modelIndex >= models.length) modelIndex = 0;
-  return models[modelIndex];
-}
-
-function markModelExhausted() {
-  const models = getModelList();
-  exhaustedModelIndex = modelIndex;
-  // Advance to next model for future calls
-  modelIndex = (modelIndex + 1) % models.length;
-}
-
-function resetModelRotation() {
-  exhaustedModelIndex = null;
-  modelIndex = 0;
+  
+  // Proactive Round-Robin: pick the current index, then increment for next time
+  const name = models[modelIndex % models.length];
+  modelIndex++;
+  return name;
 }
 
 // Stage clauses for generic use (Light/Medium/Deep)
@@ -63,11 +46,24 @@ const RELATIONSHIP_CLAUSES = {
   groups: "Focus on group settings — team dynamics, collaboration, and shared experiences."
 };
 
+// Personality prompts to shift the AI's tone
+const PERSONALITY_PROMPTS = {
+  neutral: "Maintain a warm, helpful, and balanced tone.",
+  playful: "Be witty, slightly sarcastic, and a bit of a provocateur. Use a bit of banter in the tips.",
+  soulful: "Be poetic, introspective, and deeply empathetic. Encourage lingering on the emotions of the answer.",
+  chaotic: "Be unpredictable, absurd, and a bit weird. Push the boundaries of a 'normal' conversation."
+};
+
 // Build the prompt. Pulled out so it's testable.
-function buildQuestionPrompt({ category, stage, relationship = "dating" }) {
+function buildQuestionPrompt({ category, stage, relationship = "dating", personality = "neutral", askedQuestions = [] }) {
   const stageNum = (typeof stage === "number") ? stage : 0;
   const stageClause = STAGE_CLAUSES[stageNum] || STAGE_CLAUSES[0];
   const relationshipClause = RELATIONSHIP_CLAUSES[relationship] || RELATIONSHIP_CLAUSES.dating;
+  const personalityClause = PERSONALITY_PROMPTS[personality] || PERSONALITY_PROMPTS.neutral;
+
+  const historySection = askedQuestions.length > 0 
+    ? `\n\nFORBIDDEN QUESTIONS (Do not repeat or slightly rephrase these):\n- ${askedQuestions.join("\n- ")}` 
+    : "";
 
   return `You are generating questions for a conversation game called "Spin the Question".
 Relationship context: ${relationship}
@@ -75,6 +71,14 @@ ${relationshipClause}
 
 This is stage ${stageNum} ${stageClause}.
 Category: ${category}
+${historySection}
+
+Your Personality: ${personalityClause}
+
+Style Guidelines:
+- Vary the format: mix direct questions, "would you rather" scenarios, and "tell me about a time when" prompts.
+- Be natural: occasionally weave the relationship context into the question phrasing.
+- Keep it concise: max 20 words per question.
 
 Respond with ONLY a valid JSON object, no markdown, no explanation:
 {
@@ -83,14 +87,27 @@ Respond with ONLY a valid JSON object, no markdown, no explanation:
 }`;
 }
 
-// Vibe generation removed — return a simple generic message.
-function buildVibePrompt() {
-  return `You are writing a one-sentence encouraging message for continuing the conversation game "Spin the Question".
+function buildPortraitPrompt({ relationship, personality, askedQuestions }) {
+  const personalityDesc = PERSONALITY_PROMPTS[personality] || PERSONALITY_PROMPTS.neutral;
+  
+  return `You are an expert social analyst and relationship coach. 
+Two people just finished a conversation game. 
+Relationship: ${relationship}
+AI Personality used during the game: ${personalityDesc}
+
+Here are the questions they answered:
+${askedQuestions.map((q, i) => `${i+1}. ${q}`).join("\n")}
+
+Based on the nature of these questions, write a "Conversation Portrait". 
+This is a one-sentence, evocative summary of their dynamic. 
+It should be warm, slightly poetic, and a bit playful. 
+Avoid clichés like "soulmates" or "perfect match". 
+Focus on the energy the questions suggest (e.g., "a mix of quiet understanding and sudden bursts of chaos").
 
 Respond with ONLY a valid JSON object, no markdown, no explanation:
-{ "vibe": "Keep the conversation going — you're doing great!" }
-
-Max 30 words. Warm, specific, a little playful. Avoid clichés like "soulmates" and "perfect match."`;
+{
+  "vibe": "the portrait text (max 30 words)"
+}`;
 }
 
 // Parse the model response as JSON.
@@ -98,27 +115,32 @@ function safeJsonParse(text) {
   return JSON.parse(text);
 }
 
-// Fallback vibes removed — game no longer tracks players or counts
-
-async function generateQuestion({ category, stage = 0, relationship = "dating", correlationId }) {
-  const prompt = buildQuestionPrompt({ category, stage, relationship });
+async function generateQuestion({ category, stage = 0, relationship = "dating", personality = "neutral", askedQuestions = [], correlationId }) {
+  const prompt = buildQuestionPrompt({ category, stage, relationship, personality, askedQuestions });
   const t0 = Date.now();
   let geminiMs = 0;
 
-  // Support multiple model attempts on quota/rate limit errors
   let lastError = null;
-  const maxAttempts = getModelList().length;
+  const models = getModelList();
+  const maxAttempts = models.length || 1;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let currentModel;
+    if (attempt === 0) {
+      currentModel = getNextModelName();
+    } else {
+      currentModel = models[(modelIndex + attempt - 1) % models.length];
+    }
+
     try {
       if (process.env.FORCE_FALLBACKS === "1") {
         throw new Error("FORCE_FALLBACKS is enabled");
       }
 
-      const ai = getClient(); // Use getClient() not getModel() for new SDK
+      const ai = getClient();
       const t1 = Date.now();
       const result = await ai.models.generateContent({
-        model: getModelName(), // Use rotating model
+        model: currentModel,
         contents: prompt,
         config: {
           maxOutputTokens: 512,
@@ -138,12 +160,8 @@ async function generateQuestion({ category, stage = 0, relationship = "dating", 
       });
       geminiMs = Date.now() - t1;
 
-      // The new SDK v2 returns { parsed, text } when responseMimeType is set
       const parsed = result.parsed;
-      // If parsed is available, use it; otherwise fall back to result.text()
       if (parsed && typeof parsed.question === "string" && typeof parsed.tip === "string") {
-        // Reset exhaustion tracking on success
-        resetModelRotation();
         return {
           question: parsed.question,
           tip: parsed.tip,
@@ -152,7 +170,7 @@ async function generateQuestion({ category, stage = 0, relationship = "dating", 
           geminiMs,
         };
       }
-      // Fallback: try result.text() if it's a function, or result.text if it's a string
+      
       let text = "";
       if (typeof result.text === "function") {
         text = result.text();
@@ -164,8 +182,6 @@ async function generateQuestion({ category, stage = 0, relationship = "dating", 
       if (text) {
         const fallbackParsed = safeJsonParse(text);
         if (fallbackParsed && typeof fallbackParsed.question === "string" && typeof fallbackParsed.tip === "string") {
-          // Reset exhaustion tracking on success
-          resetModelRotation();
           return {
             question: fallbackParsed.question,
             tip: fallbackParsed.tip,
@@ -175,12 +191,9 @@ async function generateQuestion({ category, stage = 0, relationship = "dating", 
           };
         }
       }
-      // If all else fails, throw to trigger fallback
       throw new Error("Gemini returned invalid response");
     } catch (err) {
       lastError = err;
-      // Check if this is an error that warrants trying another model
-// Includes quota errors, rate limits, model not found, and service unavailable errors
       const errorStr = String(err).toLowerCase();
       const isRetryableError =
         errorStr.includes("quota") ||
@@ -196,20 +209,10 @@ async function generateQuestion({ category, stage = 0, relationship = "dating", 
         errorStr.includes("temporarily") ||
         errorStr.includes("try again");
 
-      if (isRetryableError) {
-        // Mark current model as exhausted and try next one
-        markModelExhausted();
-        // Continue to next iteration to try next model
-        continue;
-      } else {
-        // Non-retryable error - break out to use fallback
-        break;
-      }
+      if (!isRetryableError) break;
     }
   }
 
-  // If we exhausted all models or had a non-quota error, fall back to hardcoded responses
-  // Log and fall back. Never throw out — the spec says never show a blank screen.
   const out = {
     type: "question_gemini_error",
     ts: Date.now(),
@@ -223,7 +226,54 @@ async function generateQuestion({ category, stage = 0, relationship = "dating", 
   return { ...fb, latencyMs: Date.now() - t0, geminiMs };
 }
 
-// Vibe generation simplified — return a generic encouraging message.
+async function generatePortrait({ relationship, personality, askedQuestions = [], correlationId }) {
+  const prompt = buildPortraitPrompt({ relationship, personality, askedQuestions });
+  const t0 = Date.now();
+  
+  try {
+    const ai = getClient();
+    const result = await ai.models.generateContent({
+      model: getNextModelName(),
+      contents: prompt,
+      config: {
+        maxOutputTokens: 200,
+        temperature: 0.8,
+        responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 0 },
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            vibe: { type: "STRING" },
+          },
+          required: ["vibe"],
+        },
+      },
+    });
+
+    const parsed = result.parsed;
+    if (parsed && typeof parsed.vibe === "string") {
+      return {
+        vibe: parsed.vibe,
+        source: "gemini",
+        latencyMs: Date.now() - t0,
+      };
+    }
+    throw new Error("Invalid portrait response");
+  } catch (err) {
+    console.error(JSON.stringify({
+      type: "portrait_error",
+      ts: Date.now(),
+      error: String(err),
+      correlationId,
+    }));
+    return {
+      vibe: "You two shared some great questions. Keep the energy going!",
+      source: "fallback",
+      latencyMs: Date.now() - t0,
+    };
+  }
+}
+
 function generateVibe() {
   return { vibe: "Keep the conversation going — you're doing great!", source: "fallback", latencyMs: 0 };
 }
@@ -231,6 +281,6 @@ function generateVibe() {
 module.exports = {
   generateQuestion,
   generateVibe,
-  // exported for tests
-  _internal: { buildQuestionPrompt, buildVibePrompt, safeJsonParse },
+  generatePortrait,
+  _internal: { buildQuestionPrompt, buildPortraitPrompt, safeJsonParse },
 };
